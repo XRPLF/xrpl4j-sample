@@ -35,8 +35,11 @@
     </dependency>
     <dependency>
       <groupId>org.xrpl</groupId>
+      <artifactId>xrpl4j-crypto-bouncycastle</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.xrpl</groupId>
       <artifactId>xrpl4j-model</artifactId>
-      <version>2.0.0</version>
     </dependency>
   </dependencies>
 
