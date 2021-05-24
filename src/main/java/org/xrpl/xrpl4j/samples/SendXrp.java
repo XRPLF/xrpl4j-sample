@@ -129,7 +129,8 @@ public class SendXrp {
           is(latestValidatedLedgerIndex.unsignedLongValue())
           .greaterThan(UnsignedLong.valueOf(lastLedgerSequence.intValue()));
         if (lastLedgerSequenceHasPassed) {
-          System.out.println("Payment was never validated and has expired.");
+          System.out.println("LastLedgerSequence has passed. Last tx response: " +
+            transactionResult);
           transactionExpired = true;
         } else {
           System.out.println("Payment not yet validated.");
