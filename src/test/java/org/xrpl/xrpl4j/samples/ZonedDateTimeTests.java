@@ -8,6 +8,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import okhttp3.HttpUrl;
 import org.immutables.value.Value.Immutable;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +19,6 @@ import org.slf4j.LoggerFactory;
 import org.xrpl.xrpl4j.client.JsonRpcClientErrorException;
 import org.xrpl.xrpl4j.client.XrplClient;
 import org.xrpl.xrpl4j.model.client.server.ServerInfo;
-import org.xrpl.xrpl4j.model.jackson.ObjectMapperFactory;
 
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -61,11 +62,16 @@ public class ZonedDateTimeTests {
       .time(ZonedDateTime.parse(expectedTimeAsString, formatter))
       .build();
 
-    final ObjectMapper objectMapper = ObjectMapperFactory.create();
+    final ObjectMapper objectMapper =
+      //  ObjectMapperFactory.create();
+      JsonMapper.builder()
+        .addModule(new JavaTimeModule())
+        .build();
+    ZoneDateTimeHolder holder = objectMapper.readValue(expectedJson, ZoneDateTimeHolder.class);
+
     String actualJson = objectMapper.writeValueAsString(zoneDateTimeHolder);
     assertThat(actualJson).isEqualTo(expectedJson);
 
-    ZoneDateTimeHolder holder = ObjectMapperFactory.create().readValue(expectedJson, ZoneDateTimeHolder.class);
     assertThat(holder).isNotNull();
   }
 
