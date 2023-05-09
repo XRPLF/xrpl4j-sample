@@ -19,7 +19,7 @@ public class GetAccountInfo {
     System.out.println("Running the GetAccountInfo sample...");
 
     // Construct a network client
-    final HttpUrl rippledUrl = HttpUrl.get("https://s.altnet.rippletest.net:51234/");
+    HttpUrl rippledUrl = HttpUrl.get("https://s.altnet.rippletest.net:51234/");
     System.out.println("Constructing an XrplClient connected to " + rippledUrl);
     XrplClient xrplClient = new XrplClient(rippledUrl);
 
@@ -41,6 +41,8 @@ public class GetAccountInfo {
     // Look up your Account Info
     AccountInfoRequestParams requestParams = AccountInfoRequestParams.of(classicAddress);
     AccountInfoResult accountInfoResult = xrplClient.accountInfo(requestParams);
+
+    // Print the result
     System.out.println(accountInfoResult);
   }
 

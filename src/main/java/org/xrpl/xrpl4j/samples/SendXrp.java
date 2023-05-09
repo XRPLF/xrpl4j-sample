@@ -43,11 +43,11 @@ public class SendXrp {
     System.out.println("Generated KeyPair: " + randomKeyPair);
 
     // Get the Classic and X-Addresses from testWallet
-    final Address classicAddress = randomKeyPair.publicKey().deriveAddress();
+    Address classicAddress = randomKeyPair.publicKey().deriveAddress();
     System.out.println("Classic Address: " + classicAddress);
 
     // Fund the account using the testnet Faucet
-    final FaucetClient faucetClient = FaucetClient.construct(HttpUrl.get("https://faucet.altnet.rippletest.net"));
+    FaucetClient faucetClient = FaucetClient.construct(HttpUrl.get("https://faucet.altnet.rippletest.net"));
     faucetClient.fundAccount(FundAccountRequest.of(classicAddress));
     System.out.println("Funded the account using the Testnet faucet.");
 
@@ -66,7 +66,7 @@ public class SendXrp {
     FeeResult feeResult = xrplClient.fee();
     XrpCurrencyAmount openLedgerFee = feeResult.drops().openLedgerFee();
 
-    // Construct a Payment
+    // Get the latest validated ledger index
     LedgerIndex validatedLedger = xrplClient.ledger(
         LedgerRequestParams.builder()
           .ledgerSpecifier(LedgerSpecifier.VALIDATED)
@@ -75,10 +75,10 @@ public class SendXrp {
       .ledgerIndex()
       .orElseThrow(() -> new RuntimeException("LedgerIndex not available."));
 
-    UnsignedInteger lastLedgerSequence = UnsignedInteger.valueOf(
-      validatedLedger.plus(UnsignedInteger.valueOf(4)).unsignedIntegerValue().intValue()
-    ); // <-- LastLedgerSequence is the current ledger index + 4
+    // LastLedgerSequence is the current ledger index + 4
+    UnsignedInteger lastLedgerSequence = validatedLedger.plus(UnsignedInteger.valueOf(4)).unsignedIntegerValue();
 
+    // Construct a Payment
     Payment payment = Payment.builder()
       .account(classicAddress)
       .amount(XrpCurrencyAmount.ofXrp(BigDecimal.ONE))
@@ -94,6 +94,7 @@ public class SendXrp {
     SignatureService<PrivateKey> signatureService = new BcSignatureService();
     SingleSignedTransaction<Payment> signedPayment = signatureService.sign(randomKeyPair.privateKey(), payment);
     System.out.println("Signed Payment: " + signedPayment.signedTransaction());
+
     // Submit the Payment
     SubmitResult<Payment> paymentSubmitResult = xrplClient.submit(signedPayment);
     System.out.println(paymentSubmitResult);
@@ -105,7 +106,7 @@ public class SendXrp {
     boolean transactionExpired = false;
     while (!transactionValidated && !transactionExpired) {
       Thread.sleep(4 * 1000);
-      final LedgerIndex latestValidatedLedgerIndex = xrplClient.ledger(
+      LedgerIndex latestValidatedLedgerIndex = xrplClient.ledger(
           LedgerRequestParams.builder()
             .ledgerSpecifier(LedgerSpecifier.VALIDATED)
             .build()
@@ -113,16 +114,13 @@ public class SendXrp {
         .ledgerIndex()
         .orElseThrow(() -> new RuntimeException("Ledger response did not contain a LedgerIndex."));
 
-      transactionResult = xrplClient.transaction(
-        TransactionRequestParams.of(signedPayment.hash()),
-        Payment.class
-      );
+      transactionResult = xrplClient.transaction(TransactionRequestParams.of(signedPayment.hash()), Payment.class);
 
       if (transactionResult.validated()) {
         System.out.println("Payment was validated with result code " + transactionResult.metadata().get().transactionResult());
         transactionValidated = true;
       } else {
-        final boolean lastLedgerSequenceHasPassed = FluentCompareTo.
+        boolean lastLedgerSequenceHasPassed = FluentCompareTo.
           is(latestValidatedLedgerIndex.unsignedIntegerValue())
           .greaterThan(UnsignedInteger.valueOf(lastLedgerSequence.intValue()));
         if (lastLedgerSequenceHasPassed) {
