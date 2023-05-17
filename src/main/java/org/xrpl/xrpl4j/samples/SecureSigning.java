@@ -1,22 +1,16 @@
 package org.xrpl.xrpl4j.samples;
 
 import com.google.common.primitives.UnsignedInteger;
-import org.xrpl.xrpl4j.codec.addresses.VersionType;
-import org.xrpl.xrpl4j.crypto.ImmutableKeyMetadata;
-import org.xrpl.xrpl4j.crypto.KeyMetadata;
-import org.xrpl.xrpl4j.crypto.PrivateKey;
-import org.xrpl.xrpl4j.crypto.PublicKey;
-import org.xrpl.xrpl4j.crypto.signing.DerivedKeysSignatureService;
-import org.xrpl.xrpl4j.crypto.signing.SignedTransaction;
-import org.xrpl.xrpl4j.crypto.signing.SingleKeySignatureService;
-import org.xrpl.xrpl4j.keypairs.DefaultKeyPairService;
-import org.xrpl.xrpl4j.keypairs.KeyPairService;
+import org.xrpl.xrpl4j.codec.addresses.KeyType;
+import org.xrpl.xrpl4j.crypto.ServerSecret;
+import org.xrpl.xrpl4j.crypto.keys.*;
+import org.xrpl.xrpl4j.crypto.signing.SignatureService;
+import org.xrpl.xrpl4j.crypto.signing.SingleSignedTransaction;
+import org.xrpl.xrpl4j.crypto.signing.bc.BcDerivedKeySignatureService;
+import org.xrpl.xrpl4j.crypto.signing.bc.BcSignatureService;
 import org.xrpl.xrpl4j.model.transactions.Address;
 import org.xrpl.xrpl4j.model.transactions.Payment;
 import org.xrpl.xrpl4j.model.transactions.XrpCurrencyAmount;
-import org.xrpl.xrpl4j.wallet.DefaultWalletFactory;
-import org.xrpl.xrpl4j.wallet.Wallet;
-import org.xrpl.xrpl4j.wallet.WalletFactory;
 
 public class SecureSigning {
 
@@ -26,48 +20,46 @@ public class SecureSigning {
   }
 
   private static void signUsingSingleKeySignatureService() {
-    WalletFactory walletFactory = DefaultWalletFactory.getInstance();
-    Wallet wallet = walletFactory.randomWallet(true).wallet();
+    KeyPair randomKeyPair = Seed.ed25519Seed().deriveKeyPair();
+    System.out.println("Generated KeyPair: " + randomKeyPair);
 
-    PrivateKey privateKey = PrivateKey.fromBase16EncodedPrivateKey(wallet.privateKey().get());
-    SingleKeySignatureService signatureService = new SingleKeySignatureService(privateKey);
-
-    Payment payment = constructPayment(wallet.classicAddress(), signatureService.getPublicKey(KeyMetadata.EMPTY));
-    SignedTransaction<Payment> signedPayment = signatureService.sign(KeyMetadata.EMPTY, payment);
+    SignatureService<PrivateKey> signatureService = new BcSignatureService();
+    Payment payment = constructPayment(randomKeyPair.publicKey());
+    SingleSignedTransaction<Payment> signedPayment = signatureService.sign(randomKeyPair.privateKey(), payment);
     System.out.println("Signed Payment: " + signedPayment.signedTransaction());
   }
 
   private static void signUsingDerivedKeysSignatureService() {
-    KeyPairService keyPairService = DefaultKeyPairService.getInstance();
-    DerivedKeysSignatureService signatureService = new DerivedKeysSignatureService("shh"::getBytes, VersionType.ED25519);
+    SignatureService<PrivateKeyReference> derivedKeySignatureService = new BcDerivedKeySignatureService(
+      () -> ServerSecret.of("shh".getBytes())
+    );
 
-    String walletId = "sample-wallet";
-    KeyMetadata keyMetadata = KeyMetadata.builder()
-      .platformIdentifier("jks")
-      .keyringIdentifier("n/a")
-      .keyIdentifier(walletId)
-      .keyVersion("1")
-      .keyPassword("password")
-      .build();
+    PrivateKeyReference privateKeyReference = new PrivateKeyReference() {
+      @Override
+      public KeyType keyType() {
+        return KeyType.ED25519;
+      }
 
+      @Override
+      public String keyIdentifier() {
+        return "sample-keypair";
+      }
+    };
 
-    final PublicKey publicKey = signatureService.getPublicKey(keyMetadata);
-    final Address classicAddress = keyPairService.deriveAddress(publicKey.value());
-
-    final Payment payment = constructPayment(classicAddress, publicKey);
-
-    final SignedTransaction<Payment> signedPayment = signatureService.sign(keyMetadata, payment);
+    PublicKey publicKey = derivedKeySignatureService.derivePublicKey(privateKeyReference);
+    Payment payment = constructPayment(publicKey);
+    SingleSignedTransaction<Payment> signedPayment = derivedKeySignatureService.sign(privateKeyReference, payment);
     System.out.println("Signed Payment: " + signedPayment.signedTransaction());
   }
 
-  private static Payment constructPayment(Address address, PublicKey publicKey) {
+  private static Payment constructPayment(PublicKey publicKey) {
     return Payment.builder()
-      .account(address)
+      .account(publicKey.deriveAddress())
       .destination(Address.of("rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"))
       .amount(XrpCurrencyAmount.ofDrops(1000))
       .fee(XrpCurrencyAmount.ofDrops(10))
       .sequence(UnsignedInteger.valueOf(16126889))
-      .signingPublicKey(publicKey.base16Encoded())
+      .signingPublicKey(publicKey)
       .build();
   }
 }
